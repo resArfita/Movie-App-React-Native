@@ -5,188 +5,293 @@ import {
     View,
     ScrollView,
     ImageBackground,
-} from "react-native";
-import React, { useEffect, useState } from "react";
-import { API_URL, API_ACCESS_TOKEN } from '@env'
-import MovieItem from "../components/movies/MovieItem";
-import { LinearGradient } from "expo-linear-gradient";
-import { FontAwesome } from '@expo/vector-icons';
+    TouchableOpacity,
+} from 'react-native'
+import React, { useEffect, useState } from 'react'
+import { API_ACCESS_TOKEN } from '@env'
+import { LinearGradient } from 'expo-linear-gradient'
+import { FontAwesome } from '@expo/vector-icons'
+import { Movie } from '../types/app'
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import MovieItem from '../components/movies/MovieItem'
 
-const coverImageSize = {
-    backdrop: {
-      width: 280,
-      height: 160,
-    },
-    poster: {
-      width: 100,
-      height: 160,
-    },
-};
-
-const MovieDetail = ({ route }: any): any => {
-    const { data } = route.params;
-    const movies = data.movie;
-    const size = data.size;
-    const coverType = data.coverType;
-
-    const [recommend, setRecommend] = useState();
+const MovieDetail = ({ route }: any): JSX.Element => {
+    const [movie, setMovie] = useState<any>(null)
+    const [recommendations, setRecommendations] = useState<any[]>([])
+    const [isFavorite, setIsFavorite] = useState<boolean>(false)
+    const { id } = route.params
 
     useEffect(() => {
-        getMovieList();
-    }, []);
+        fetchMovieDetail()
+        fetchRecommendations()
+        checkFavoriteStatus()
+    }, [id])
 
-    const getMovieList = (): void => {
-        const url = `https://api.themoviedb.org/3/movie/${movies.id}/recommendations`;
-
+    const fetchMovieDetail = async (): Promise<void> => {
+        const url = `https://api.themoviedb.org/3/movie/${id}`
         const options = {
-            method: 'GET',
-            headers: {
-              accept: 'application/json',
-              Authorization: `Bearer ${API_ACCESS_TOKEN}`,
-            },
-          };
-          
-          fetch(url, options)
-            .then(async (response) => await response.json())
-            .then((response) => { setRecommend(response.results)})
-            .catch((errorResponse) => {
-                console.log(errorResponse);
-            });
-  };
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            Authorization: `Bearer ${API_ACCESS_TOKEN}`,
+          },
+        }
 
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            setMovie(data)
+          } catch (error) {
+            console.log(error)
+          }
+        }
 
-  return (
-    <ScrollView>
-      <ImageBackground
-        resizeMode="stretch"
-        style={[styles.w_full, styles.backgroundImage]}
-        imageStyle={styles.backgroundImageStyle}
-        source={{
-          uri: `https://image.tmdb.org/t/p/w500/${
-            coverType === "backdrop" ? movies.backdrop_path : movies.poster_path
-          }`,
-        }}
-      >
-        <LinearGradient
-          colors={["#00000000", "rgba(0, 0, 0, 0.7)"]}
-          locations={[0.6, 0.8]}
-          style={styles.gradientStyle}
-        >
-          <Text style={styles.movieTitle}>{movies.title}</Text>
-          <View style={styles.ratingContainer}>
-            <FontAwesome name="star" size={16} color="yellow" />
-            <Text style={styles.rating}>{movies.vote_average.toFixed(1)}</Text>
-          </View>
-        </LinearGradient>
-      </ImageBackground>
+        const fetchRecommendations = async (): Promise<void> => {
+            const url = `https://api.themoviedb.org/3/movie/${id}/recommendations`
+            const options = {
+              method: "GET",
+              headers: {
+                accept: "application/json",
+                Authorization: `Bearer ${API_ACCESS_TOKEN}`,
+              },
+            }
+        
+            try {
+              const response = await fetch(url, options);
+              const data = await response.json();
+              setRecommendations(data.results);
+            } catch (error) {
+              console.log(error);
+            }
+          }
 
-      <Text
-        style={{
-          fontSize: 13,
-          paddingHorizontal: 20,
-          marginTop: 20,
-          textAlign: "justify",
-        }}
-      >
-        {movies.overview}
-      </Text>
+          const addFavorite = async (movie: Movie): Promise<void> => {
+            try {
+              const initialData: string | null = await AsyncStorage.getItem(
+                "@FavoriteList"
+              )
 
-      <View
-        style={{ flexDirection: "row", paddingHorizontal: 20, marginTop: 10 }}
-      >
-        <View>
-          <Text style={{ fontWeight: "bold" }}>Original Language</Text>
-          <Text>{movies.original_language}</Text>
-          <Text style={{ fontWeight: "bold" }}>Release Date</Text>
-          <Text>{movies.release_date}</Text>
-        </View>
-        <View style={{ marginLeft: 100 }}>
-          <Text style={{ fontWeight: "bold" }}>Popularity</Text>
-          <Text>{movies.popularity}</Text>
-          <Text style={{ fontWeight: "bold" }}>Vote Count</Text>
-          <Text>{movies.vote_count}</Text>
-        </View>
-      </View>
+              let favMovieList: Movie[] = initialData ? JSON.parse(initialData) : []
+              favMovieList.push(movie)
+              await AsyncStorage.setItem("@FavoriteList", JSON.stringify(favMovieList))
+              console.log("Added to favorites:", movie)
+              setIsFavorite(true)
+            } catch (err) {
+              console.log(err)
+            }
+          }
 
-      <View style={styles.header}>
-        <View style={styles.purpleLabel}></View>
-        <Text style={styles.title}>Recommendation</Text>
-      </View>
+          const removeFavorite = async (id: number): Promise<void> => {
+            try {
+              const initialData: string | null = await AsyncStorage.getItem(
+                '@FavoriteList'
+              )
+              if (initialData) {
+                const favMovieList: Movie[] = JSON.parse(initialData).filter(
+                  (movie: Movie) => movie.id !== id
+                )
+                await AsyncStorage.setItem(
+                  '@FavoriteList',
+                  JSON.stringify(favMovieList)
+                )
+                setIsFavorite(false);
+              }
+            } catch (err) {
+              console.log(err);
+            }
+          }
 
-      <FlatList
-        style={{
-          ...styles.movieList,
-        }}
-        showsHorizontalScrollIndicator={false}
-        horizontal
-        data={recommend}
-        renderItem={({ item }) => (
-          <MovieItem
-            movie={item}
-            size={coverImageSize.poster}
-            coverType={coverType}
-          />
-        )}
-        keyExtractor={(item) => item.id.toString()}
-      />
-    </ScrollView>
-  );
-};
+          const checkIsFavorite = async (id: number): Promise<boolean> => {
+            try {
+              const initialData: string | null = await AsyncStorage.getItem(
+                '@FavoriteList'
+              )
+              if (initialData) {
+                const favMovieList: Movie[] = JSON.parse(initialData);
+                return favMovieList.some((movie: Movie) => movie.id === id);
+              }
+              return false;
+            } catch (err) {
+              console.log(err);
+              return false;
+            }
+          }
 
-export default MovieDetail;
+          const checkFavoriteStatus = async (): Promise<void> => {
+            const favoriteStatus = await checkIsFavorite(id);
+            setIsFavorite(favoriteStatus)
+          }
+        
+          if (!movie) {
+            return (
+              <View style={styles.loadingContainer}>
+                <Text>Loading...</Text>
+              </View>
+            )
+          }
+
+          return (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.container}>
+                <ImageBackground
+                  source={{
+                    uri: `https://image.tmdb.org/t/p/w500${movie.backdrop_path}`,
+                  }}
+                  style={styles.backdrop}
+                >
+                  <LinearGradient
+                    colors={["#00000000", "rgba(0, 0, 0, 0.7)"]}
+                    locations={[0.6, 1]}
+                    style={styles.gradient}
+                  >
+                    <Text style={styles.title}>{movie.title}</Text>
+                    <View style={styles.flexrow2}>
+                      <View style={styles.ratingContainer}>
+                        <FontAwesome name="star" size={16} color="yellow" />
+                        <Text style={styles.rating}>
+                          {movie.vote_average.toFixed(1)}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={
+                          isFavorite
+                            ? () => removeFavorite(movie.id)
+                            : () => addFavorite(movie)
+                        }
+                        style={styles.ratingContainer}
+                      >
+                        <FontAwesome
+                          name={isFavorite ? 'heart' : 'heart-o'}
+                          size={24}
+                          color='red'
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </LinearGradient>
+                </ImageBackground>
+                <Text style={styles.overview}>{movie.overview}</Text>
+                <View style={styles.flexrow}>
+                  <View style={styles.flex}>
+                    <Text style={styles.detailLabel}>Original Language: </Text>
+                    <Text>{movie.original_language}</Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.detailLabel}>Popularity: </Text>
+                    <Text>{movie.popularity}</Text>
+                  </View>
+                </View>
+                <View style={styles.flexrow}>
+                  <View style={styles.flex}>
+                    <Text style={styles.detailLabel}>Release date: </Text>
+                    <Text>{movie.release_date}</Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.detailLabel}>Vote Count: </Text>
+                    <Text>{movie.vote_count}</Text>
+                  </View>
+                </View>
+                <View style={styles.header}>
+                  <View style={styles.purpleLabel}></View>
+                  <Text style={styles.titleR}>Recommendation</Text>
+                </View>
+                <FlatList
+                  style={styles.recommendationList}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={recommendations}
+                  renderItem={({ item }) => (
+                    <MovieItem
+                      movie={item}
+                      size={{ width: 100, height: 160 }}
+                      coverType='poster'
+                    />
+                  )}
+                  keyExtractor={(item) => item.id.toString()}
+                />
+            </View>
+        </ScrollView>
+    )
+}
 
 const styles = StyleSheet.create({
+    container: {
+      backgroundColor: '#fff',
+      flex: 1,
+    },
     header: {
-        marginLeft: 6,
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 20,
-      },
-      purpleLabel: {
-        width: 20,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#8978A4",
-        marginRight: 12,
-      },
-      title: {
-        fontSize: 20,
-        fontWeight: "900",
-      },
-      w_full: {
-        width: "100%",
-        height: 200,
-      },
-      backgroundImage: {
-        marginRight: 4,
-      },
-      backgroundImageStyle: {
-        borderRadius: 0,
-      },
-      movieTitle: {
-        color: "white",
-        fontSize: 20,
-      },
-      gradientStyle: {
-        padding: 8,
-        height: "100%",
-        width: "100%",
-        borderRadius: 8,
-        display: "flex",
-        justifyContent: "flex-end",
-      },
-      ratingContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 2,
-      },
-      rating: {
-        color: "yellow",
-        fontWeight: "700",
-      },
-      movieList: {
-        paddingLeft: 4,
-        marginTop: 8,
-  },
-});
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 8,
+    },
+    flexrow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 8,
+      marginVertical: 8,
+    },
+    flexrow2: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    purpleLabel: {
+      width: 20,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#8978A4',
+      marginRight: 12,
+      marginLeft: 8,
+    },
+    titleR: {
+      fontSize: 20,
+      fontWeight: '900',
+    },
+    backdrop: {
+      width: '100%',
+      height: 250,
+      overflow: 'hidden',
+      marginBottom: 16,
+    },
+    gradient: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      padding: 16,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: '#fff',
+    },
+    ratingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
+    rating: {
+      color: 'yellow',
+      fontWeight: '700',
+    },
+    overview: {
+      padding: 16,
+      fontSize: 16,
+      marginVertical: 8,
+      color: '#000',
+    },
+    detailLabel: {
+      fontWeight: 'bold',
+    },
+    recommendationList: {
+      paddingLeft: 8,
+      marginTop: 8,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    flex: {
+      flex: 1,
+      marginHorizontal: 8,
+    },
+  })
+  
+  export default MovieDetail
