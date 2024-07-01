@@ -13,9 +13,7 @@ import type { MovieItemProps } from '../../types/app'
 
 const MovieItem = ({ movie, size, coverType }: MovieItemProps): JSX.Element => {
     const navigation = useNavigation()
-    const pushAction = StackActions.push('MovieDetail', { data: { movie, size, coverType },
-    })
-
+    const pushAction = StackActions.push('MovieDetail', { id: movie.id })
     return (
       <TouchableOpacity
       onPress={() => {
@@ -38,7 +36,7 @@ const MovieItem = ({ movie, size, coverType }: MovieItemProps): JSX.Element => {
           >
             <Text style={styles.movieTitle}>{movie.title}</Text>
             <View style={styles.ratingContainer}>
-              <FontAwesome name="star" size={16} color="yellow" />
+              <FontAwesome name='star' size={16} color='yellow' />
               <Text style={styles.rating}>{movie.vote_average.toFixed(1)}</Text>
             </View>
           </LinearGradient>
